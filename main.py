@@ -6,6 +6,7 @@ import time
 import image_load
 
 #TODO
+# Testing an update
 # Change color scheme to the first 100 spaces to be mostly greens
 # Change the color scheme of 100-200 to be blues
 # Add speed statistic to enemies
@@ -22,7 +23,6 @@ import image_load
 # Add attack and defense to right hand tab
 # Make Grim reaper screen
 # Make ending screen
-# Post onto github
 # Make audio
 # Randomize attack
 # Add super attack and make it a different color
