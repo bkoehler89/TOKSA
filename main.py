@@ -6,7 +6,7 @@ import time
 import image_load
 
 #TODO
-# Testing an update
+# Make death screen
 # Change color scheme to the first 100 spaces to be mostly greens
 # Change the color scheme of 100-200 to be blues
 # Add speed statistic to enemies
@@ -26,8 +26,6 @@ import image_load
 # Make audio
 # Randomize attack
 # Add super attack and make it a different color
-
-
 
 # Initialize Pygame
 pygame.init()
@@ -52,6 +50,9 @@ LIGHT_BROWNS = [(255, 229, 204), (255, 242, 229), (255, 229, 178)]
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("Game Map")
 
+# Create the map with coordinates and colors
+game_map = [[(x, y, random.choice(LIGHT_GREENS + LIGHT_BROWNS)) for x in range(MAP_WIDTH)] for y in range(MAP_HEIGHT)]
+
 
 class Equipment:
     def __init__(self, name, equip_type, defense=0, attack=0, image=None):
@@ -70,6 +71,8 @@ class Key:
 
 
 class Enemy:
+    kill_counts = {}  # Class-level dictionary to track kills per enemy type
+
     def __init__(self, name, attack, defense, speed, health, alive_image, dead_image, drop_logic=None):
         self.name = name
         self.attack = attack
@@ -83,19 +86,25 @@ class Enemy:
         self.item_drop = None  # Add item_drop to track dropped items
         self.drop_logic = drop_logic if drop_logic else {}
 
-    def drop_item(self, global_kill_count):
-        if global_kill_count in self.drop_logic:
-            return self.drop_logic[global_kill_count]
-        return None
+        # Initialize the kill count for this enemy type if not already done
+        if self.name.lower() not in Enemy.kill_counts:
+            Enemy.kill_counts[self.name.lower()] = 0
 
-    def die(self, global_kill_count):
+    def drop_item(self):
+        """Determine the item to drop based on the kill count."""
+        kill_count = Enemy.kill_counts[self.name.lower()]
+        return self.drop_logic.get(kill_count, None)
+
+    def die(self):
+        """Handle enemy death and increment kill count."""
         self.alive = False
-        self.item_drop = self.drop_item(global_kill_count)
+        Enemy.kill_counts[self.name.lower()] += 1  # Increment the kill count for this enemy type
+        self.item_drop = self.drop_item()
 
 
 class Player:
     def __init__(self):
-        self.pos = [110, MAP_HEIGHT // 2]  # Spawn
+        self.pos = [30, MAP_HEIGHT // 2]  # Spawn
         self.health = 100
         self.alive = True
         self.alive_image = image_load.player_alive_image
@@ -122,47 +131,6 @@ class Player:
         print(f"Defense: {self.defense}, Attack: {self.attack}")
 
 
-# create equipment objects
-katana = Equipment("Katana", "right hand", 1, 2, image_load.katana_image)
-broken_shield = Equipment("Broken Shield", "left hand", 1, 0, image_load.broken_shield_image)
-leather_armor = Equipment("Leather Armor", "armor", 1, 0, image_load.leather_armor_image)
-helmet = Equipment(name="Leather Helmet", equip_type="helmet", defense=1, image=image_load.helmet_image)
-apprentice_sword = Equipment(name="Apprentice Sword", equip_type="right hand", attack=1, defense=1, image=image_load.sword_image)
-knight_boots = Equipment("Knight Boots", equip_type="Boots", defense=1, image=image_load.knight_boots_image)
-leather_legs = Equipment("Leather Legs", equip_type="legs", defense=1, image=image_load.leather_legs_image)
-crystal_boots = Equipment("Crystal Boots", equip_type="Boots", defense=1, image=image_load.crystal_boots_image)
-
-# Initialize the player
-player = Player()
-
-# Create the map with coordinates and colors
-game_map = [[(x, y, random.choice(LIGHT_GREENS + LIGHT_BROWNS)) for x in range(MAP_WIDTH)] for y in range(MAP_HEIGHT)]
-
-# Add 50 mountains and 50 ponds randomly
-obstacle_positions = set()
-while len(obstacle_positions) < 100:
-    obstacle_positions.add((random.randint(0, 99), random.randint(0, MAP_HEIGHT - 1)))
-
-pond_positions = set(random.sample(obstacle_positions, 50))
-mountain_positions = obstacle_positions - pond_positions
-
-for col in range(90, 96):
-    for row in range(MAP_HEIGHT):
-        if random.random() < 0.4:  # 40% chance for each square to be a mountain
-            mountain_positions.add((col, row))
-
-for col in range(96, 101):
-    for row in range(MAP_HEIGHT):
-        if random.random() < 0.85:
-            mountain_positions.add((col, row))
-
-for mx, my in mountain_positions:
-    game_map[my][mx] = (mx, my, 'mountain')
-
-for px, py in pond_positions:
-    game_map[py][px] = (px, py, 'pond')
-
-
 def place_item_on_map(item_name, item_type, count=1, x_range=(0, MAP_WIDTH - 1), y_range=(0, MAP_HEIGHT - 1),
                       avoid_positions=None):
     if avoid_positions is None:
@@ -179,20 +147,6 @@ def place_item_on_map(item_name, item_type, count=1, x_range=(0, MAP_WIDTH - 1),
 
     return item_pos if count == 1 else avoid_positions
 
-
-# Usage of the function:
-potion_positions = place_item_on_map('Potion', 'potion', count=5, x_range=(0, 75), y_range=(0, MAP_HEIGHT - 1))
-helmet_pos = place_item_on_map('Helmet', 'helmet', avoid_positions=list(potion_positions),
-                               x_range=(0, 75), y_range=(0, MAP_HEIGHT - 1))
-sword_pos = place_item_on_map('Sword', 'sword', avoid_positions=[helmet_pos] + list(potion_positions),
-                              x_range=(0, 75), y_range=(0, MAP_HEIGHT - 1))
-leather_armor_pos = place_item_on_map('Leather Armor', 'leather_armor',
-                                      avoid_positions=[helmet_pos, sword_pos] + list(potion_positions),
-                                      x_range=(0, 75), y_range=(0, MAP_HEIGHT - 1))
-exit_pos = place_item_on_map('Exit', 'exit', x_range=(MAP_WIDTH - 5, MAP_WIDTH - 1),
-                             avoid_positions=[helmet_pos, sword_pos, leather_armor_pos] + list(potion_positions))
-
-
 # Consolidated function to add enemies to the map
 def add_enemies_to_map(enemy_type, count, x_range, stats, images, drop_logic=None):
     enemies = []
@@ -208,60 +162,6 @@ def add_enemies_to_map(enemy_type, count, x_range, stats, images, drop_logic=Non
         enemy.pos = enemy_pos
         enemies.append(enemy)
     return enemies
-
-
-# For Trolls
-trolls = add_enemies_to_map(
-    "Troll", 5, (10, 40), ("Troll", 5, 0, 1, 30),
-    (image_load.troll_alive_image, image_load.troll_dead_image),
-    drop_logic={2: broken_shield, 3: katana, 4: leather_legs}  # Pass drop logic here
-)
-
-# For Orcs
-orcs = add_enemies_to_map(
-    "Orc", 2, (45, 70), ("Orc", 7, 2, 1, 50),
-    (image_load.orc_alive_image, image_load.orc_dead_image),
-    drop_logic={1: knight_boots}
-)
-
-# For Boss, assuming only one boss, we can handle it differently or use the same logic
-bosses = add_enemies_to_map(
-    "Boss", 1, (45, 70), ("Boss", 2, 1, 1, 20),
-    (image_load.boss_alive_image, image_load.boss_dead_image),
-    drop_logic={1: crystal_boots}
-)
-
-tomatoes = add_enemies_to_map(
-    "Tomato", 5, (110, 140), ("Tomato", 2, 1, 1.5, 20),
-    (image_load.tomato_alive_image, image_load.tomato_dead_image),
-    drop_logic={1: broken_shield}
-)
-
-eggplants = add_enemies_to_map(
-    "Eggplant", 3, (130, 170), ("Eggplant", 2, 1, 1.5, 20),
-    (image_load.eggplant_alive_image, image_load.eggplant_dead_image),
-    drop_logic={1: broken_shield}
-)
-
-pumpkin_bosses = add_enemies_to_map(
-    "Pumpkin", 1, (180, 190), ("Pumpkin", 2, 1, 5, 20),
-    (image_load.boss_pumpkin_alive_image, image_load.boss_pumpkin_dead_image),
-    drop_logic={1: broken_shield}
-)
-
-
-enemies = trolls + orcs + bosses + tomatoes + eggplants + pumpkin_bosses
-enemy_names = list(set([enemy.name.casefold() for enemy in enemies]))
-
-# Initialize the player
-player = Player()
-
-# Inventory labels
-inventory_slots = ['helmet', 'right hand', 'left hand', 'armor', 'legs', 'Boots', 'Key']
-inventory = {slot: None for slot in inventory_slots}
-enemy_colors = ['troll', 'dead_troll', 'orc', 'dead_orc', 'boss', 'dead_boss', 'tomato', 'dead_tomato',
-                'eggplant', 'dead_eggplant', 'pumpkin', 'dead_pumpkin']
-
 
 # Function to draw the map
 def draw_map(center):
@@ -305,12 +205,10 @@ def draw_map(center):
     screen.blit(player.image, (player_screen_x, player_screen_y))
     draw_player_health(player.pos, player.health)
 
-
 # Function to draw the player's health
 def draw_health(health):
     health_text = font.render(f"Health: {health}", True, RED)
     screen.blit(health_text, (WIDTH - 190, 10))
-
 
 # New function to draw player's health
 def draw_player_health(player_pos, health):
@@ -318,7 +216,6 @@ def draw_player_health(player_pos, health):
     player_screen_y = (player_pos[1] - player.pos[1] + VIEWPORT_SIZE // 2) * GRID_SIZE
     health_text = small_font.render(f"{health}", True, RED)
     screen.blit(health_text, (player_screen_x, player_screen_y - 20))  # Place text above player
-
 
 def show_health_gain(amount):
     health_gain_texts.append((f"+{amount}", (player.pos[0], player.pos[1]), time.time()))
@@ -345,7 +242,6 @@ def pick_up_item(item_pos, item_type, item_class):
         player.update_stats()
         return None
     return item_pos
-
 
 def draw_enemy(enemy_type, enemies, map_x, map_y, rect):
     enemy = next((e for e in enemies if e.pos == (map_x, map_y)), None)
@@ -386,8 +282,6 @@ def draw_inventory():
             image_rect = inventory[slot].image.get_rect(center=rect.center)
             screen.blit(inventory[slot].image, image_rect.topleft)
 
-
-# Function to draw the health full message
 def draw_health_full_message():
     health_full_text = font.render("Health full", True, RED)
     screen.blit(health_full_text, (WIDTH // 2 - 50, HEIGHT // 2 - 15))
@@ -419,6 +313,108 @@ def move_enemy(enemy_pos, player_pos):
 
     return x, y
 
+# Initialize the player
+player = Player()
+
+# create equipment objects
+katana = Equipment("Katana", "right hand", 1, 2, image_load.katana_image)
+broken_shield = Equipment("Broken Shield", "left hand", 1, 0, image_load.broken_shield_image)
+leather_armor = Equipment("Leather Armor", "armor", 1, 0, image_load.leather_armor_image)
+helmet = Equipment(name="Leather Helmet", equip_type="helmet", defense=1, image=image_load.helmet_image)
+apprentice_sword = Equipment(name="Apprentice Sword", equip_type="right hand", attack=1, defense=1, image=image_load.sword_image)
+knight_boots = Equipment("Knight Boots", equip_type="Boots", defense=1, image=image_load.knight_boots_image)
+leather_legs = Equipment("Leather Legs", equip_type="legs", defense=1, image=image_load.leather_legs_image)
+crystal_boots = Equipment("Crystal Boots", equip_type="Boots", defense=1, image=image_load.crystal_boots_image)
+
+# Add 50 mountains and 50 ponds randomly
+obstacle_positions = set()
+while len(obstacle_positions) < 100:
+    obstacle_positions.add((random.randint(0, 99), random.randint(0, MAP_HEIGHT - 1)))
+
+pond_positions = set(random.sample(obstacle_positions, 50))
+mountain_positions = obstacle_positions - pond_positions
+
+for col in range(90, 96):
+    for row in range(MAP_HEIGHT):
+        if random.random() < 0.4:  # 40% chance for each square to be a mountain
+            mountain_positions.add((col, row))
+
+for col in range(96, 101):
+    for row in range(MAP_HEIGHT):
+        if random.random() < 0.85:
+            mountain_positions.add((col, row))
+
+for mx, my in mountain_positions:
+    game_map[my][mx] = (mx, my, 'mountain')
+
+for px, py in pond_positions:
+    game_map[py][px] = (px, py, 'pond')
+
+# Place starting objects
+potion_positions = place_item_on_map('Potion', 'potion', count=5, x_range=(0, 75), y_range=(0, MAP_HEIGHT - 1))
+helmet_pos = place_item_on_map('Helmet', 'helmet', avoid_positions=list(potion_positions),
+                               x_range=(0, 75), y_range=(0, MAP_HEIGHT - 1))
+sword_pos = place_item_on_map('Sword', 'sword', avoid_positions=[helmet_pos] + list(potion_positions),
+                              x_range=(0, 75), y_range=(0, MAP_HEIGHT - 1))
+leather_armor_pos = place_item_on_map('Leather Armor', 'leather_armor',
+                                      avoid_positions=[helmet_pos, sword_pos] + list(potion_positions),
+                                      x_range=(0, 75), y_range=(0, MAP_HEIGHT - 1))
+exit_pos = place_item_on_map('Exit', 'exit', x_range=(MAP_WIDTH - 5, MAP_WIDTH - 1),
+                             avoid_positions=[helmet_pos, sword_pos, leather_armor_pos] + list(potion_positions))
+
+# Add trolls to map
+trolls = add_enemies_to_map(
+    "Troll", 5, (10, 40), ("Troll", 5, 0, 1, 30),
+    (image_load.troll_alive_image, image_load.troll_dead_image),
+    drop_logic={2: broken_shield, 3: katana, 4: leather_legs}  # Pass drop logic here
+)
+
+# Add orcs to map
+orcs = add_enemies_to_map(
+    "Orc", 2, (45, 70), ("Orc", 7, 2, 1, 50),
+    (image_load.orc_alive_image, image_load.orc_dead_image),
+    drop_logic={1: knight_boots}
+)
+
+# Add boss to map
+bosses = add_enemies_to_map(
+    "Boss", 1, (45, 70), ("Boss", 2, 1, 1, 20),
+    (image_load.boss_alive_image, image_load.boss_dead_image),
+    drop_logic={1: crystal_boots}
+)
+
+# Add tomatoes to map
+tomatoes = add_enemies_to_map(
+    "Tomato", 5, (110, 140), ("Tomato", 2, 1, 1.5, 20),
+    (image_load.tomato_alive_image, image_load.tomato_dead_image),
+    drop_logic={1: broken_shield}
+)
+
+# Add eggplants to map
+eggplants = add_enemies_to_map(
+    "Eggplant", 3, (130, 170), ("Eggplant", 2, 1, 1.5, 20),
+    (image_load.eggplant_alive_image, image_load.eggplant_dead_image),
+    drop_logic={1: broken_shield}
+)
+
+# Add pumpkin boss to map
+pumpkin_bosses = add_enemies_to_map(
+    "Pumpkin", 1, (180, 190), ("Pumpkin", 2, 1, 5, 20),
+    (image_load.boss_pumpkin_alive_image, image_load.boss_pumpkin_dead_image),
+    drop_logic={1: broken_shield}
+)
+
+enemies = trolls + orcs + bosses + tomatoes + eggplants + pumpkin_bosses
+enemy_names = list(set([enemy.name.casefold() for enemy in enemies]))
+
+# Initialize the player
+player = Player()
+
+# Inventory labels
+inventory_slots = ['helmet', 'right hand', 'left hand', 'armor', 'legs', 'Boots', 'Key']
+inventory = {slot: None for slot in inventory_slots}
+enemy_colors = ['troll', 'dead_troll', 'orc', 'dead_orc', 'boss', 'dead_boss', 'tomato', 'dead_tomato',
+                'eggplant', 'dead_eggplant', 'pumpkin', 'dead_pumpkin']
 
 # Main game loop
 font = pygame.font.Font(None, 30)
@@ -432,12 +428,6 @@ health_full_message_time = 0  # Initialize health_full_message_time
 health_loss_display_duration = 0.5  # Duration for displaying health loss
 health_loss_texts = []  # Store health loss texts to display
 health_gain_texts = []
-troll_kill_count = 0
-orc_kill_count = 0
-boss_kill_count = 0
-tomato_kill_count = 0
-eggplant_kill_count = 0
-pumpkin_kill_count = 0
 current_enemy = None
 
 while running:
@@ -511,11 +501,11 @@ while running:
                     (f"-{damage_to_enemy}", (current_enemy.pos[0], current_enemy.pos[1]), current_time))
 
                 if current_enemy.health <= 0:
-                    globals()[f"{current_enemy.name.lower()}_kill_count"] += 1  # Increment first
-                    current_enemy.die(globals()[f"{current_enemy.name.lower()}_kill_count"])
-                    # Update map to show dead enemy
+                    current_enemy.die()
+                    # Update the map to show the dead enemy
                     game_map[current_enemy.pos[1]][current_enemy.pos[0]] = (
-                        current_enemy.pos[0], current_enemy.pos[1], 'dead_' + current_enemy.name.lower())
+                        current_enemy.pos[0], current_enemy.pos[1], 'dead_' + current_enemy.name.lower()
+                    )
 
             last_combat_time = current_time
 
