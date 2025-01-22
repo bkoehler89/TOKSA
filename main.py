@@ -4,6 +4,8 @@ import random
 import time
 
 import image_load
+import pygame.mixer
+pygame.mixer.init()
 
 #TODO
 # Make death screen
@@ -23,12 +25,13 @@ import image_load
 # Add attack and defense to right hand tab
 # Make Grim reaper screen
 # Make ending screen
-# Make audio
 # Randomize attack
 # Add super attack and make it a different color
+# Add sound effects
 
 # Initialize Pygame
 pygame.init()
+pygame.mixer.music.load('Audio/main_soundtrack.wav')
 
 # Constants
 WIDTH, HEIGHT = 1000, 700  # Window size (wider to accommodate inventory)
@@ -313,6 +316,16 @@ def move_enemy(enemy_pos, player_pos):
 
     return x, y
 
+def draw_health_texts(text_list, color, current_time, duration):
+    for text, pos, timestamp in text_list[:]:  # Using a copy to modify the list during iteration
+        if current_time - timestamp < duration:
+            screen_x = (pos[0] - player.pos[0] + VIEWPORT_SIZE // 2) * GRID_SIZE
+            screen_y = (pos[1] - player.pos[1] + VIEWPORT_SIZE // 2) * GRID_SIZE
+            rendered_text = small_font.render(text, True, color)
+            screen.blit(rendered_text, (screen_x, screen_y - 40))
+        else:
+            text_list.remove((text, pos, timestamp))
+
 # Initialize the player
 player = Player()
 
@@ -416,6 +429,9 @@ inventory = {slot: None for slot in inventory_slots}
 enemy_colors = ['troll', 'dead_troll', 'orc', 'dead_orc', 'boss', 'dead_boss', 'tomato', 'dead_tomato',
                 'eggplant', 'dead_eggplant', 'pumpkin', 'dead_pumpkin']
 
+# Sound effects
+sound_drink = pygame.mixer.Sound('Audio/belch.wav')
+
 # Main game loop
 font = pygame.font.Font(None, 30)
 small_font = pygame.font.Font(None, 20)
@@ -425,10 +441,10 @@ last_enemy_move_time = time.time()
 last_combat_time = time.time()  # Time tracker for combat
 last_health_loss_display_time = 0  # Time tracker for health loss display
 health_full_message_time = 0  # Initialize health_full_message_time
-health_loss_display_duration = 0.5  # Duration for displaying health loss
 health_loss_texts = []  # Store health loss texts to display
 health_gain_texts = []
 current_enemy = None
+pygame.mixer.music.play(-1)
 
 while running:
     current_time = time.time()
@@ -471,6 +487,7 @@ while running:
             potion_positions.remove(tuple(player.pos))
             game_map[player.pos[1]][player.pos[0]] = (
                 player.pos[0], player.pos[1], random.choice(LIGHT_GREENS + LIGHT_BROWNS))
+            sound_drink.play()
         else:
             health_full_message_time = current_time
 
@@ -531,25 +548,8 @@ while running:
     if current_time - health_full_message_time < 1:
         draw_health_full_message()
 
-    # Draw health loss texts
-    for text, pos, timestamp in health_loss_texts:
-        if current_time - timestamp < health_loss_display_duration:
-            screen_x = (pos[0] - player.pos[0] + VIEWPORT_SIZE // 2) * GRID_SIZE
-            screen_y = (pos[1] - player.pos[1] + VIEWPORT_SIZE // 2) * GRID_SIZE
-            health_loss_text = small_font.render(text, True, RED)
-            screen.blit(health_loss_text, (screen_x, screen_y - 40))
-        else:
-            health_loss_texts.remove((text, pos, timestamp))
-
-    # Draw health gain texts
-    for text, pos, timestamp in health_gain_texts[:]:  # Using a copy to modify list during iteration
-        if current_time - timestamp < health_loss_display_duration:  # Use the same duration for consistency
-            screen_x = (pos[0] - player.pos[0] + VIEWPORT_SIZE // 2) * GRID_SIZE
-            screen_y = (pos[1] - player.pos[1] + VIEWPORT_SIZE // 2) * GRID_SIZE
-            health_gain_text = small_font.render(text, True, (0, 255, 0))  # Green color
-            screen.blit(health_gain_text, (screen_x, screen_y - 40))
-        else:
-            health_gain_texts.remove((text, pos, timestamp))
+    draw_health_texts(health_loss_texts, RED, current_time, 0.5)
+    draw_health_texts(health_gain_texts, (0, 255, 0), current_time, 0.5)
 
     if player.alive and tuple(player.pos) == exit_pos:
         if inventory['Key']:  # Assuming you need a key to exit
@@ -567,5 +567,6 @@ while running:
     pygame.display.flip()
     clock.tick(30)  # Limit to 30 frames per second
 
+pygame.mixer.music.stop()
 pygame.quit()
 sys.exit()
