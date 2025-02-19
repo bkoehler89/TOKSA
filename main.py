@@ -8,7 +8,8 @@ import pygame.mixer
 pygame.mixer.init()
 
 #TODO
-# Make death screen
+# Map out the flow of the game
+# Make ending/Valhalla screen
 # Change color scheme to the first 100 spaces to be mostly greens
 # Change the color scheme of 100-200 to be blues
 # Add speed statistic to enemies
@@ -18,20 +19,19 @@ pygame.mixer.init()
 # Make chasm at location 200
 # Item to get across chasm, wings probably
 # Update artwork with left, right, up and down
-# Create opening screen
 # Box off boss at the beginning so player has to go back to kill it
-# Grim reaper that kills you in the end and send you to valhalla
+# Arch angel that kills you in the end and send you to valhalla
 # Make background of images transparent
 # Add attack and defense to right hand tab
-# Make Grim reaper screen
-# Make ending screen
+# Make Arch angel screen
 # Randomize attack
 # Add super attack and make it a different color
 # Add sound effects
+# Make a unique character for each of the guys
 
 # Initialize Pygame
 pygame.init()
-pygame.mixer.music.load('Audio/main_soundtrack.wav')
+# pygame.mixer.music.load('Audio/main_soundtrack.wav')
 
 # Constants
 WIDTH, HEIGHT = 1000, 700  # Window size (wider to accommodate inventory)
@@ -55,7 +55,7 @@ pygame.display.set_caption("Game Map")
 
 # Create the map with coordinates and colors
 game_map = [[(x, y, random.choice(LIGHT_GREENS + LIGHT_BROWNS)) for x in range(MAP_WIDTH)] for y in range(MAP_HEIGHT)]
-
+original_map = [[(x, y, color) for x, y, color in row] for row in game_map]
 
 class Equipment:
     def __init__(self, name, equip_type, defense=0, attack=0, image=None):
@@ -133,6 +133,82 @@ class Player:
                 self.defense += item.defense
         print(f"Defense: {self.defense}, Attack: {self.attack}")
 
+
+# Function to display the opening overlay
+def show_opening_overlay():
+    overlay_width = WIDTH // 2
+    overlay_height = HEIGHT // 3
+    overlay_x = WIDTH // 4  # Centered, 25% from left and right
+    overlay_y = 10  # Small buffer from top
+
+    overlay = pygame.Surface((overlay_width, overlay_height))  # Solid overlay
+    overlay.fill((255, 255, 255))  # White background
+
+    title_text = font.render("Welcome, brave adventurer", True, (0, 0, 255))  # Blue text
+    button_text = font.render("Begin", True, (255, 255, 255))  # White text for button
+
+    button_rect = pygame.Rect(overlay_x + overlay_width // 2 - 50, overlay_y + overlay_height - 60, 100, 40)
+
+    running_overlay = True
+    while running_overlay:
+        screen.fill(BLACK)  # Keep the game background still
+        draw_map(player.pos)  # Draw the game map
+        draw_inventory()
+        draw_health(player.health)
+
+        screen.blit(overlay, (overlay_x, overlay_y))  # Place solid overlay centered at the top
+        screen.blit(title_text, (overlay_x + overlay_width // 2 - title_text.get_width() // 2, overlay_y + 20))
+
+        pygame.draw.rect(screen, (0, 200, 0), button_rect)  # Green button
+        screen.blit(button_text, (button_rect.x + 25, button_rect.y + 10))
+
+        pygame.display.flip()
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                if button_rect.collidepoint(event.pos):
+                    running_overlay = False  # Exit the overlay loop
+
+def show_death_screen():
+    overlay_width = WIDTH // 2
+    overlay_height = HEIGHT // 3
+    overlay_x = WIDTH // 4  # Centered, 25% from left and right
+    overlay_y = 10  # Small buffer from top
+
+    overlay = pygame.Surface((overlay_width, overlay_height))  # Solid overlay
+    overlay.fill((255, 255, 255))  # White background
+
+    title_text = font.render("Welp, you died.  You are quite, quite bad.", True, (0, 0, 255))  # Blue text
+    button_text = font.render("Rage Quit", True, (255, 255, 255))  # White text for button
+
+    button_rect = pygame.Rect(overlay_x + overlay_width // 2 - 50, overlay_y + overlay_height - 60, 100, 40)
+
+    running_overlay = True
+    while running_overlay:
+        screen.fill(BLACK)  # Keep the game background still
+        draw_map(player.pos)  # Draw the game map
+        draw_inventory()
+        draw_health(player.health)
+
+        screen.blit(overlay, (overlay_x, overlay_y))  # Place solid overlay centered at the top
+        screen.blit(title_text, (overlay_x + overlay_width // 2 - title_text.get_width() // 2, overlay_y + 20))
+
+        pygame.draw.rect(screen, (200, 0, 0), button_rect)  # Red button
+        screen.blit(button_text, (button_rect.x + 25, button_rect.y + 10))
+
+        pygame.display.flip()
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                if button_rect.collidepoint(event.pos):
+                    pygame.quit()
+                    sys.exit()
 
 def place_item_on_map(item_name, item_type, count=1, x_range=(0, MAP_WIDTH - 1), y_range=(0, MAP_HEIGHT - 1),
                       avoid_positions=None):
@@ -312,6 +388,13 @@ def move_enemy(enemy_pos, player_pos):
             new_y += 1
 
     if 0 <= new_x < MAP_WIDTH and 0 <= new_y < MAP_HEIGHT:
+        # Remove enemy from old position
+        old_color = original_map[y][x][2]  # Get original terrain
+        game_map[y][x] = (x, y, old_color)  # Restore original color
+
+        # Move to new position
+        new_color = original_map[new_y][new_x][2]  # Get new position's original terrain
+        game_map[new_y][new_x] = (new_x, new_y, enemy.name.lower())  # Place enemy
         return new_x, new_y
 
     return x, y
@@ -431,6 +514,7 @@ enemy_colors = ['troll', 'dead_troll', 'orc', 'dead_orc', 'boss', 'dead_boss', '
 
 # Sound effects
 sound_drink = pygame.mixer.Sound('Audio/belch.wav')
+sound_drink.set_volume(0.1)
 
 # Main game loop
 font = pygame.font.Font(None, 30)
@@ -444,7 +528,9 @@ health_full_message_time = 0  # Initialize health_full_message_time
 health_loss_texts = []  # Store health loss texts to display
 health_gain_texts = []
 current_enemy = None
-pygame.mixer.music.play(-1)
+# pygame.mixer.music.play(-1)
+
+show_opening_overlay()
 
 while running:
     current_time = time.time()
@@ -535,10 +621,7 @@ while running:
             if enemy.alive:
                 new_enemy_pos = move_enemy(enemy.pos, player.pos)
                 if new_enemy_pos != enemy.pos and all(new_enemy_pos != e.pos for e in enemies):
-                    game_map[enemy.pos[1]][enemy.pos[0]] = (
-                        enemy.pos[0], enemy.pos[1], random.choice(LIGHT_GREENS + LIGHT_BROWNS))
-                    enemy.pos = new_enemy_pos
-                    game_map[enemy.pos[1]][enemy.pos[0]] = (enemy.pos[0], enemy.pos[1], enemy.name.lower())
+                    enemy.pos = new_enemy_pos  # Update enemy position
         last_enemy_move_time = current_time
 
     screen.fill(BLACK)
@@ -561,12 +644,11 @@ while running:
 
     # Display "You died" message if the player is dead
     if not player.alive:
-        death_text = font.render("You died. Click to exit.", True, RED)
-        screen.blit(death_text, (WIDTH // 2 - death_text.get_width() // 2, HEIGHT // 2 - death_text.get_height() // 2))
+        show_death_screen()
 
     pygame.display.flip()
     clock.tick(30)  # Limit to 30 frames per second
 
-pygame.mixer.music.stop()
+# pygame.mixer.music.stop()
 pygame.quit()
 sys.exit()
